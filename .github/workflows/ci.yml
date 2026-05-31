@@ -18,15 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
       - name: Install uv
         run: pip install uv
 
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --extra dev --python ${{ matrix.python-version }}
 
       - name: Lint (ruff)
         run: uv run ruff check src tests
