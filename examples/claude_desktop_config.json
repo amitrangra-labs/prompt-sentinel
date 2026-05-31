@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "prompt-sentinel": {
+      "command": "uvx",
+      "args": ["prompt-sentinel"]
+    }
+  }
+}
