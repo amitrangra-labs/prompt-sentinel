@@ -68,7 +68,4 @@ class FilterEngine:
         rule_word = "rule" if n == 1 else "rules"
         if action == Action.REWRITE:
             return f"PII detected ({category_str}); sensitive data redacted before forwarding."
-        return (
-            f"Blocked ({risk_level.value} risk): {n} {rule_word} triggered "
-            f"— {category_str}."
-        )
+        return f"Blocked ({risk_level.value} risk): {n} {rule_word} triggered — {category_str}."
