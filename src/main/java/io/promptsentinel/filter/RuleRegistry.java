@@ -1,8 +1,7 @@
 package io.promptsentinel.filter;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+import tools.jackson.dataformat.yaml.YAMLMapper;
 import io.promptsentinel.types.RuleCategory;
 
 import java.io.IOException;
@@ -30,8 +29,7 @@ public final class RuleRegistry {
     // ── Loading ───────────────────────────────────────────────────────────────
 
     private static List<Rule> load() {
-        var mapper = new ObjectMapper(new YAMLFactory());
-        mapper.findAndRegisterModules();
+        var mapper = YAMLMapper.builder().build();
 
         try (InputStream in = RuleRegistry.class.getResourceAsStream("/rules.yaml")) {
             if (in == null) {
