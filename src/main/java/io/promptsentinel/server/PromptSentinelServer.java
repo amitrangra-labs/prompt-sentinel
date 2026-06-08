@@ -40,15 +40,35 @@ public final class PromptSentinelServer {
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private static final FilterEngine ENGINE  = new FilterEngine();
 
+    /**
+     * Injected automatically by Claude Desktop into the system context for every session.
+     * This is the MCP-native way to make filter_prompt run without explicit user instruction.
+     */
+    private static final String SERVER_INSTRUCTIONS = """
+            You are connected to Prompt Sentinel, a prompt-safety firewall.
+
+            MANDATORY: Before answering ANY user message — no exceptions — call \
+            filter_prompt with the user's exact message text.
+
+            Decision rules:
+            - allowed = true  → proceed using filtered_prompt as the actual input
+            - allowed = false → respond ONLY with the reason field; do not answer the request
+
+            Never skip this check, even for greetings or seemingly benign messages.
+            """;
+
     public static void main(String[] args) throws Exception {
         var transport = new StdioServerTransportProvider(McpJsonDefaults.getMapper());
 
         var server = McpServer.sync(transport)
                 .serverInfo("prompt-sentinel", "0.1.0")
+                .instructions(SERVER_INSTRUCTIONS)
                 .capabilities(McpSchema.ServerCapabilities.builder()
                         .tools(Boolean.TRUE)
+                        .prompts(Boolean.TRUE)
                         .build())
                 .tools(filterPromptTool(), listRulesTool())
+                .prompts(autoFilterPrompt())
                 .build();
 
         // Block main thread until the process receives a shutdown signal.
@@ -115,6 +135,30 @@ public final class PromptSentinelServer {
                     }
                 })
                 .build();
+    }
+
+    // ── Prompt definitions ────────────────────────────────────────────────────
+
+    /**
+     * MCP prompt that injects the auto-filter instruction into a session on demand.
+     * Useful as a manual fallback for clients that don't honour server instructions.
+     */
+    private static McpServerFeatures.SyncPromptSpecification autoFilterPrompt() {
+        var prompt = new McpSchema.Prompt(
+                "enable_auto_filter",
+                "Enable Prompt Sentinel auto-filter",
+                "Inject the Sentinel instruction so every message is filtered automatically.",
+                null
+        );
+        return new McpServerFeatures.SyncPromptSpecification(prompt, (exchange, request) ->
+                new McpSchema.GetPromptResult(
+                        "Prompt Sentinel auto-filter instruction",
+                        List.of(new McpSchema.PromptMessage(
+                                McpSchema.Role.USER,
+                                new McpSchema.TextContent(SERVER_INSTRUCTIONS)
+                        ))
+                )
+        );
     }
 
     private static McpServerFeatures.SyncToolSpecification listRulesTool() {
