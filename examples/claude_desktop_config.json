@@ -1,8 +1,8 @@
 {
   "mcpServers": {
     "prompt-sentinel": {
-      "command": "uvx",
-      "args": ["prompt-sentinel"]
+      "command": "java",
+      "args": ["-jar", "/path/to/prompt-sentinel-0.1.0.jar"]
     }
   }
 }

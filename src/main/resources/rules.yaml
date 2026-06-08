@@ -1,0 +1,184 @@
+# Prompt Sentinel — rule definitions
+# Each rule fires at most once per prompt (first pattern match wins).
+# risk_contribution feeds into the probabilistic OR scorer: 1 − ∏(1 − cᵢ)
+#
+# category values: prompt_injection | jailbreak | pii |
+#                  malicious_code | data_exfiltration | sensitive_disclosure
+#
+# Patterns are Java regex strings (CASE_INSENSITIVE | DOTALL | MULTILINE applied at runtime).
+# Use single-quoted YAML scalars — no backslash double-escaping needed.
+
+rules:
+
+  # ── Prompt Injection ───────────────────────────────────────────────────────
+
+  - id: pi_ignore_instructions
+    name: Ignore Previous Instructions
+    category: prompt_injection
+    riskContribution: 0.75
+    patterns:
+      - 'ignore\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+instructions'
+      - 'disregard\s+(?:all\s+)?(?:previous|prior|above|earlier)\s+(?:instructions|guidelines|rules)'
+
+  - id: pi_override_system
+    name: System Prompt Override
+    category: prompt_injection
+    riskContribution: 0.80
+    patterns:
+      - '(?:override|replace|reset)\s+(?:your\s+)?(?:system\s+prompt|system\s+instructions|previous\s+instructions)'
+      - 'new\s+system\s+prompt\s*:'
+      - 'your\s+(?:new|updated|real|actual)\s+instructions?\s*(?:are|is)\s*:'
+
+  - id: pi_forget_context
+    name: Context Erasure Injection
+    category: prompt_injection
+    riskContribution: 0.70
+    patterns:
+      - 'forget\s+(?:everything|all)\s+(?:i(?:''ve|\s+have)\s+(?:said|told\s+you)|(?:prior|previous|above)\s+(?:instructions|context))'
+      - '(?:clear|erase|delete)\s+(?:your\s+)?(?:memory|context|instructions|system\s+prompt)'
+
+  - id: pi_token_smuggling
+    name: Token Smuggling / Delimiter Abuse
+    category: prompt_injection
+    riskContribution: 0.80
+    patterns:
+      - '<\|(?:im_start|im_end|endoftext|system|user|assistant)\|>'
+      - '\[INST\].*\[/INST\]'
+      - '#{3,}\s*(?:SYSTEM|INSTRUCTIONS?|PROMPT)\s*#{3,}'
+
+  # ── Jailbreak ──────────────────────────────────────────────────────────────
+
+  - id: jb_dan
+    name: DAN / Do Anything Now
+    category: jailbreak
+    riskContribution: 0.85
+    patterns:
+      - '\bDAN\b'
+      - 'do\s+anything\s+now'
+      - 'jailbreak(?:ed)?\s+(?:mode|version|ai|prompt)'
+
+  - id: jb_unrestricted_ai
+    name: Unrestricted AI Persona
+    category: jailbreak
+    riskContribution: 0.85
+    patterns:
+      - '(?:act|pretend|behave)\s+(?:as\s+(?:if\s+)?(?:you\s+(?:are|have)\s+)?|like\s+)(?:an?\s+)?(?:AI|model|assistant|chatbot)\s+(?:with(?:out)\s+(?:any\s+)?(?:restrictions?|limitations?|filters?|guidelines?|ethical\s+(?:constraints?|guidelines?)|safety(?:\s+measures?)?)|that\s+(?:has\s+)?no\s+(?:restrictions?|limitations?|filters?))'
+      - 'you\s+(?:have|had)\s+no\s+(?:restrictions?|limitations?|ethical\s+(?:constraints?|guidelines?)|safety(?:\s+(?:measures?|guidelines?))?)'
+      - '(?:enable|activate|switch\s+to)\s+(?:developer|god|unrestricted|jailbreak|evil|chaos)\s+mode'
+      - '(?:you\s+are\s+)?(?:now\s+)?(?:an?\s+)?(?:unrestricted|uncensored|unfiltered)\s+(?:AI|version|mode|model)'
+
+  - id: jb_roleplay_bypass
+    name: Roleplay Safety Bypass
+    category: jailbreak
+    riskContribution: 0.80
+    patterns:
+      - '(?:in\s+this\s+)?(?:roleplay|story|fictional|hypothetical)\s+(?:scenario|context|setting|universe|world).*(?:no\s+(?:restrictions?|rules?|limits?|guidelines?)|anything\s+(?:goes|is\s+allowed))'
+      - '(?:pretend|imagine)\s+(?:you\s+are|you''re|this\s+is)\s+a\s+(?:story|game|simulation)\s+where.*(?:allowed?|permitted?|no\s+rules?)'
+      - 'grandma\s+(?:used\s+to\s+)?(?:tell|read|explain).*(?:steps?|how\s+to|instructions?)'
+
+  # ── PII ────────────────────────────────────────────────────────────────────
+
+  - id: pii_ssn
+    name: Social Security Number
+    category: pii
+    riskContribution: 0.55
+    patterns:
+      - '\b\d{3}-\d{2}-\d{4}\b'
+
+  - id: pii_credit_card
+    name: Credit Card Number
+    category: pii
+    riskContribution: 0.65
+    patterns:
+      - '\b(?:\d{4}[\s\-]){3}\d{4}\b'
+
+  - id: pii_email
+    name: Email Address
+    category: pii
+    riskContribution: 0.30
+    patterns:
+      - '\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b'
+
+  - id: pii_phone
+    name: Phone Number
+    category: pii
+    riskContribution: 0.30
+    patterns:
+      - '\b(?:\+?1[\s.\-]?)?\(?\d{3}\)?[\s.\-]\d{3}[\s.\-]\d{4}\b'
+
+  # ── Malicious Code ─────────────────────────────────────────────────────────
+
+  - id: code_shell_destroy
+    name: Destructive Shell Command
+    category: malicious_code
+    riskContribution: 0.90
+    patterns:
+      - 'rm\s+-[rf]{1,2}\s+(?:[/~]|\S*/\S*)'
+      - ':\(\)\s*\{\s*:\|:&\s*\}\s*;:'
+      - 'mkfs\.\w+\s+/dev/'
+      - 'dd\s+if=.*of=/dev/(?:sd[a-z]|hd[a-z]|nvme\d)'
+
+  - id: code_exec_eval
+    name: Dynamic Code Execution
+    category: malicious_code
+    riskContribution: 0.65
+    patterns:
+      - '\beval\s*\('
+      - '\bexec\s*\('
+      - '__import__\s*\('
+      - 'compile\s*\([^)]*exec'
+      - 'getattr\s*\(__builtins__'
+
+  - id: code_os_execution
+    name: OS Command Execution
+    category: malicious_code
+    riskContribution: 0.65
+    patterns:
+      - '\bos\.system\s*\('
+      - '\bsubprocess\.(?:run|call|Popen|check_output|check_call)\s*\('
+      - '\bos\.popen\s*\('
+
+  - id: code_pipe_shell
+    name: Download and Execute
+    category: malicious_code
+    riskContribution: 0.85
+    patterns:
+      - '(?:curl|wget)\s+\S+\s*\|\s*(?:ba)?sh\b'
+      - '(?:curl|wget)\s+\S+\s*\|\s*(?:python3?|perl|ruby)\b'
+
+  # ── Data Exfiltration ──────────────────────────────────────────────────────
+
+  - id: exfil_send_data
+    name: Data Exfiltration Request
+    category: data_exfiltration
+    riskContribution: 0.80
+    patterns:
+      - '(?:send|transmit|upload|post|exfiltrate)\s+(?:(?:all|the|this|my|our)\s+)+(?:data|information|content|results?|secrets?|credentials?|tokens?)\s+to\b'
+      - '(?:leak|steal|exfiltrate|extract)\s+(?:all\s+)?(?:the\s+)?(?:data|information|credentials?|secrets?|api\s+keys?|passwords?)\b'
+
+  - id: exfil_webhook
+    name: Suspicious Exfiltration Endpoint
+    category: data_exfiltration
+    riskContribution: 0.75
+    patterns:
+      - '(?:webhook\.site|requestbin|pipedream\.net|burpcollaborator|canarytokens|interactsh)'
+      - '(?:ngrok|localtunnel)\.(?:io|com|app)/\S+'
+
+  # ── Sensitive Disclosure ───────────────────────────────────────────────────
+
+  - id: sd_system_prompt
+    name: System Prompt Extraction
+    category: sensitive_disclosure
+    riskContribution: 0.60
+    patterns:
+      - '(?:what\s+is|show(?:\s+me)?|reveal|print|repeat|output|display|tell\s+me)\s+(?:your|the)\s+(?:full\s+|complete\s+|exact\s+)?system\s+prompt'
+      - '(?:what\s+(?:are|were)|show(?:\s+me)?|reveal|print|output)\s+(?:your|the)\s+(?:full\s+|complete\s+|exact\s+)?(?:instructions?|guidelines?|rules?|constraints?)'
+      - 'print\s+(?:everything|all\s+text)\s+(?:above|before)\s+(?:this|my\s+message|the\s+user)'
+
+  - id: sd_training_data
+    name: Training Data Extraction
+    category: sensitive_disclosure
+    riskContribution: 0.50
+    patterns:
+      - '(?:repeat|output|show|print|extract)\s+(?:your\s+)?training\s+data'
+      - '(?:what\s+(?:data|text|content)\s+(?:were|was)\s+you\s+trained\s+on|tell\s+me\s+(?:your\s+)?training\s+(?:data|corpus))'
